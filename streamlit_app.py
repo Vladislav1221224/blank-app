@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 # Load data
 data = pd.read_csv("life-expectancy.csv")
 alcohol_data = pd.read_csv("alcohol-consumption.csv")
+death_rate_data = pd.read_csv("death-rates-from-alcohol.csv")
 
 # Ensure Year is an integer and Alcohol Consumption is a float
 alcohol_data["Year"] = alcohol_data["Year"].astype(int)
@@ -132,3 +133,75 @@ fig_combined.update_layout(
 
 # Display the combined plot in Streamlit
 st.plotly_chart(fig_combined)
+death_rate_data["Year"] = death_rate_data["Year"].astype(int)
+death_rate_data["Death rate from alcohol"] = death_rate_data["Death rate from alcohol"].astype(float)
+
+# Set up Streamlit app
+st.title("Alcohol Consumption and Alcohol-related Death Rates Analysis")
+st.write("This app allows you to explore alcohol consumption and death rates from alcohol by country.")
+
+# Filter countries for selection in the sidebar
+countries = alcohol_data['Entity'].unique()
+selected_country = st.selectbox("Choose a country for detailed analysis", countries)
+
+# Filter data for the selected country
+country_alcohol_data = alcohol_data[alcohol_data["Entity"] == selected_country]
+country_death_rate_data = death_rate_data[death_rate_data["Entity"] == selected_country]
+
+# Merge data on the "Year" column to align the two datasets for the selected country
+merged_data = pd.merge(country_alcohol_data, country_death_rate_data, on=["Entity", "Year"], how="inner")
+
+# Rename columns for clarity
+merged_data = merged_data.rename(columns={
+    "Alcohol Consumption": "Alcohol Consumption (Liters per Capita)",
+    "Death rate from alcohol": "Death Rate from Alcohol (per 100,000)"
+})
+
+# Plot combined graph with two y-axes
+fig = go.Figure()
+
+# Add Alcohol Consumption trace
+fig.add_trace(
+    go.Scatter(
+        x=merged_data["Year"],
+        y=merged_data["Alcohol Consumption (Liters per Capita)"],
+        mode="lines+markers",
+        name="Alcohol Consumption (Liters per Capita)",
+        line=dict(color="blue"),
+        yaxis="y1"
+    )
+)
+
+# Add Death Rate from Alcohol trace
+fig.add_trace(
+    go.Scatter(
+        x=merged_data["Year"],
+        y=merged_data["Death Rate from Alcohol (per 100,000)"],
+        mode="lines+markers",
+        name="Death Rate from Alcohol (per 100,000)",
+        line=dict(color="red"),
+        yaxis="y2"
+    )
+)
+
+# Update layout to add two y-axes
+fig.update_layout(
+    title=f"Alcohol Consumption and Death Rate from Alcohol Over Time in {selected_country}",
+    xaxis=dict(title="Year"),
+    yaxis=dict(
+        title="Alcohol Consumption (Liters per Capita)",
+        titlefont=dict(color="blue"),
+        tickfont=dict(color="blue")
+    ),
+    yaxis2=dict(
+        title="Death Rate from Alcohol (per 100,000)",
+        titlefont=dict(color="red"),
+        tickfont=dict(color="red"),
+        overlaying="y",
+        side="right"
+    ),
+    legend=dict(x=0.1, y=1.1)
+)
+
+# Display the plot in Streamlit
+st.plotly_chart(fig)
