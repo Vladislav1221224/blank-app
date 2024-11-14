@@ -1,118 +1,78 @@
-import pandas as pd
 import streamlit as st
-import os
-import re
+import pandas as pd
 
-years = [2018, 2019, 2020, 2021]
+# Load data
+data = pd.read_csv("life-expectancy.csv")
+alcohol_data = pd.read_csv("alcohol-consumption.csv")
+alcohol_data["Year"] = alcohol_data["Year"].astype(int)
+alcohol_data["Alcohol Consumption"] = alcohol_data["Alcohol Consumption"].astype(float)
 
-general_work_data_yearly = {}
-general_education_data_yearly = {}
+# Set up Streamlit app
+st.title("Life Expectancy and Alcohol Consumption Analysis")
+st.write("This app allows you to explore life expectancy trends and alcohol consumption by country.")
 
-@st.cache_data
-def load_and_process_all_data(folder_path):
-    # Перебираємо всі файли в папці з даними
-    for file_name in os.listdir(folder_path):
-        # Перевірка на відповідність імені файлу
-        match = re.match(r"data-(\d{4})\.xls", file_name)
-        if match:
-            # Визначаємо рік з імені файлу
-            year = int(match.group(1))
-            file_path = os.path.join(folder_path, file_name)
+# Life Expectancy Analysis
+st.header("Life Expectancy Over Time by Country")
 
-            # Завантаження та обробка даних
-            data = pd.read_excel(file_path, header=None)
-            data = data.drop([0, 1], axis=0).reset_index(drop=True)
+# Filter countries for selection in the sidebar
+countries = data['Entity'].unique()
+selected_countries = st.sidebar.multiselect("Select countries to display", countries, default=["Afghanistan", "Albania"])
 
-            # Перевірка кількості стовпців
-            if len(data.columns) > 9:
-                data = data.iloc[:, :-1]  # Видаляємо останній стовпець
+# Select year range
+min_year, max_year = int(data["Year"].min()), int(data["Year"].max())
+year_range = st.sidebar.slider("Select year range for life expectancy", min_year, max_year, (min_year, max_year),step=5)
 
-            # Встановлення нового заголовка
-            new_header = data.iloc[0]
-            data = data[1:]
-            data.columns = new_header
+# Filter data based on selections
+filtered_data = data[(data["Entity"].isin(selected_countries)) & 
+                     (data["Year"] >= year_range[0]) & 
+                     (data["Year"] <= year_range[1])]
 
-            # Створення нових колонок для назви місяців
-            months_eng = ["January-March", "January-June", "January-September", "January-December"]
-            new_columns = [f"{month} (тыс. осіб)" if i % 2 == 0 else f"{month} (% до робочої сили)"
-                           for month in months_eng for i in range(2)]
+filtered_countries_data = filtered_data[filtered_data["Entity"].isin(selected_countries)]
 
-            # Присвоєння нових колонок
-            data.columns = ["Age Group", *new_columns]
+# Pivot the data to have countries as columns and years as the index
+pivot_data = filtered_countries_data.pivot_table(
+    index='Year', 
+    columns='Entity', 
+    values="Period life expectancy at birth - Sex: all - Age: 0"
+)
+# Plot the data using Streamlit's line_chart function
+st.line_chart(pivot_data)
 
-            # Спочатку заміняємо NaN значення на порожній рядок
-            data.iloc[:, 0] = data.iloc[:, 0].fillna("")
+# Get unique years from the data and sort them
+available_years = sorted(alcohol_data["Year"].unique())
 
-            # Шукаємо потрібні строки
-            cache = data[data['Age Group'].str.contains("Усе\s+населення\s+віком\s+15\s+років\s+і\s+старше", na=False)]
-            if cache["Age Group"].empty:
-                cache = data[data['Age Group'].str.contains("Усе населення у віці 15-70 років", na=False)]
+# Use select_slider to limit choices to available years
+selected_year = st.sidebar.select_slider("Select year for alcohol consumption", options=available_years)
 
-            # Видалення колонки "Age Group"
-            cache = cache.drop(columns=["Age Group"], errors="ignore")
-            #Перетворення таблиці в потрібний формат (Months, Population, % Workforce)
-            cache_melted = pd.DataFrame()
-            for i, month in enumerate(months_eng):
-                # Вибираємо стовпці з даними для цього місяця
-                pop_col = f"{month} (тыс. осіб)"
-                workforce_col = f"{month} (% до робочої сили)"
+# Filter data for the selected year
+yearly_alcohol_data = alcohol_data[alcohol_data["Year"] == selected_year]
 
-                # Додаємо рядки в новий формат
-                temp_df = pd.DataFrame({
-                    "Months": [month],
-                    "Population": cache[pop_col].values,
-                    "% of Workforce": cache[workforce_col].values
-                })
+# Display the filtered data
+st.dataframe(yearly_alcohol_data)
+top_n = st.sidebar.slider("Select number of top countries", 1, 50, 10)
 
-                # Додаємо дані в загальний DataFrame
-                cache_melted = pd.concat([cache_melted, temp_df], ignore_index=True)
+# Alcohol Consumption Analysis
+st.header(f"Top {top_n} Countries by Alcohol Consumption for {selected_year} year")
 
-            # Додаємо отримані дані до загальних даних
-            general_work_data_yearly[year] = cache_melted
+st.dataframe(alcohol_data["Year"])
+st.write(selected_year)
+# Filter alcohol data for the selected year
+yearly_alcohol_data = alcohol_data[(alcohol_data["Year"] == selected_year)]
 
-    return general_work_data_yearly
+# Display the filtered data
+st.dataframe(yearly_alcohol_data)
 
-# Шлях до папки з файлами
-folder_path = "dataset"
-general_work_data_yearly = load_and_process_all_data(folder_path)
+filtered_countries_data = filtered_data[filtered_data["Entity"].isin(selected_countries)]
 
-# Define the data for education in a dictionary format
-general_education_data_yearly = {
-    "Year": [2018, 2019, 2020, 2021],
-    "Graduates": [55499, 50246, 47342, 261788]
-}
+# Top N countries by alcohol consumption
+top_n_alcohol = yearly_alcohol_data.nlargest(top_n, 'Alcohol Consumption').copy()
+top_n_alcohol['Alcohol Consumption'] = top_n_alcohol['Alcohol Consumption'].astype(float)
 
-# Convert the dictionary to a DataFrame
-df_education = pd.DataFrame(general_education_data_yearly)
-
-# Ensure the 'Year' column is treated as integers (to avoid formatting issues)
-df_education['Year'] = df_education['Year'].astype(int)
-
-# Prepare Population data for plotting
-population_data = []
-workforce_data = []
-for year in years:
-    if year in general_work_data_yearly:
-        population_data.append(general_work_data_yearly[year]['Population'].sum())
-        workforce_data.append(general_work_data_yearly[year]['% of Workforce'].sum())
-
-# Prepare a new DataFrame for both Graduates and Population for line chart
-df_plot = pd.DataFrame({
-    'Year': years,
-    'Graduates': df_education['Graduates'],
-    'Population(in thousands)': population_data,
-    '% Workforce': workforce_data
-})
-
-# Normalize the data
-df_plot['Graduates Normalized'] = (df_plot['Graduates'] - df_plot['Graduates'].min()) / (df_plot['Graduates'].max() - df_plot['Graduates'].min())
-df_plot['Population Normalized'] = (df_plot['Population(in thousands)'] - df_plot['Population(in thousands)'].min()) / (df_plot['Population(in thousands)'].max() - df_plot['Population(in thousands)'].min())
-df_plot['% Workforce Normalized'] = (df_plot['% Workforce'] - df_plot['% Workforce'].min()) / (df_plot['% Workforce'].max() - df_plot['% Workforce'].min())
-
-# Display the data as a table in Streamlit
-st.write("Загальні дані випускників та населення за роками (2018-2021) та нормалізовані дані:")
-st.dataframe(df_plot)
-
-# Plotting the graphs using st.line_chart
-st.write("Графіки випускників, населення та нормалізованих даних за роками:")
-st.line_chart(df_plot.set_index('Year'))
+top_n_alcohol = top_n_alcohol.sort_values(by="Alcohol Consumption",ascending=False)
+# Rank countries and set as index
+top_n_alcohol["Ranked Country"] = [f"{i+1}. {country}" for i, country in enumerate(top_n_alcohol["Entity"])]
+top_n_alcohol.set_index("Ranked Country", inplace=True)
+st.dataframe(top_n_alcohol['Alcohol Consumption'])
+# Display the bar chart with ranked countries
+st.header(f'Top {top_n} Countries by Alcohol Consumption (Liters per Capita)')
+st.bar_chart(top_n_alcohol['Alcohol Consumption'], y_label='Liters of Alcohol')
