@@ -168,7 +168,7 @@ fig_combined.add_trace(
         mode="lines+markers",
         name="Death rate from alcohol",
         line=dict(color="orange"),
-        yaxis="y3"
+        yaxis="y4"
     )
 )
 
@@ -195,7 +195,16 @@ fig_combined.update_layout(
         overlaying="y",
         side="right",
         position=0.85
+    ),    
+    yaxis4=dict(
+        title="Death rate from alcohol()",
+        titlefont=dict(color="green"),
+        tickfont=dict(color="green"),
+        overlaying="y",
+        side="right",
+        position=0.85
     ),
+    
     legend=dict(x=0.1, y=1.1)
 )
 
