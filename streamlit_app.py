@@ -194,15 +194,15 @@ fig_combined.update_layout(
         tickfont=dict(color="green"),
         overlaying="y",
         side="right",
-        position=0.85
+        position=1.15
     ),    
     yaxis4=dict(
         title="Death rate from alcohol()",
-        titlefont=dict(color="green"),
-        tickfont=dict(color="green"),
+        titlefont=dict(color="yellow"),
+        tickfont=dict(color="yellow"),
         overlaying="y",
         side="right",
-        position=0.85
+        position=1.30
     ),
     
     legend=dict(x=0.1, y=1.1)
